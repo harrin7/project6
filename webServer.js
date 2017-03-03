@@ -176,30 +176,24 @@ app.get('/user/:id', function (request, response) {
  * URL /photosOfUser/:id - Return the Photos for User (id)
  */
 app.get('/photosOfUser/:id', function (request, response) {
-    var id = request.params.id;
+    const id = request.params.id;
     Photo.find ({'user_id': id}, function(err, photos){
-        var photoArray = JSON.parse(JSON.stringify(photos));
-
         if (photos.length === 0) {
             console.log('Photos for user with _id:' + id + ' not found.');
             response.status(400).send('Not found');
-        }
-        else {
-          async.eachOf(photoArray, function(photo, photoIndex, photosCallback) {
-              if (photo.comments.length > 0) {
-                  async.eachOf(photo.comments, function(comment, commentIndex, commentsCallback) {
-                      User.findOne({ '_id': comment.user_id}, '_id first_name last_name', function(err, user) {
-                          console.log("user query complete");
-                          photoArray[photoIndex].comments[commentIndex].user = user;
-                          commentsCallback();
-                      });
-                  }, function() {
-                      photosCallback();
+        } else {
+          const photoArray = JSON.parse(JSON.stringify(photos));
+
+          async.map(photoArray, function(photo, photosCallback) {
+              async.map(photo.comments, function(comment, commentsCallback) {
+                  User.findOne({ '_id': comment.user_id}, '_id first_name last_name', function(err, user) {
+                      comment.user = user;
+                      commentsCallback(err, comment);
                   });
-              } else {
-                  photosCallback();
-              }
-          }, function() {
+              }, function(err, mergedCommentsArray) {
+                  photosCallback(err, mergedCommentsArray);
+              });
+          }, function(err, mergedPhotosArray) {
               response.status(200).send(photoArray);
           });
         }
