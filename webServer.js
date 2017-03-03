@@ -147,7 +147,7 @@ app.get('/user/list', function (request, response) {
             response.status(200).send(userList);
             // We got the object - return it in JSON format.
             console.log('User', user);
-        }); 
+        });
 
 
 });
@@ -169,7 +169,7 @@ app.get('/user/:id', function (request, response) {
         console.log('User Details', userDetails);
         response.status(200).send(userDetails);
     } );
-    
+
 });
 
 /*
@@ -177,34 +177,32 @@ app.get('/user/:id', function (request, response) {
  */
 app.get('/photosOfUser/:id', function (request, response) {
     var id = request.params.id;
-    console.log('here');
-    console.log(id);
-    // var photos = cs142models.photoOfUserModel(id);
     Photo.find ({'user_id': id}, function(err, photos){
         var photoArray = JSON.parse(JSON.stringify(photos));
 
         if (photos.length === 0) {
             console.log('Photos for user with _id:' + id + ' not found.');
             response.status(400).send('Not found');
-            return;
         }
         else {
-            var photoDetails = photos.forEach(function(photo, photoIndex){
-                var clonePhoto = photo;
-                if (clonePhoto.comments.length > 0){
-                    clonePhoto.comments.forEach(function(comment, commentIndex){
-                        console.log("user query complete");
-                        User.findOne({ '_id': comment.user_id}, '_id first_name last_name', function(err, user){
-                            photoArray[photoIndex].comments[commentIndex].user = user;
-                        });
-                    })
-                }
-                return clonePhoto;
-            })
-            console.log(photoArray);
-            response.status(200).send(photoArray);
+          async.eachOf(photoArray, function(photo, photoIndex, photosCallback) {
+              if (photo.comments.length > 0) {
+                  async.eachOf(photo.comments, function(comment, commentIndex, commentsCallback) {
+                      User.findOne({ '_id': comment.user_id}, '_id first_name last_name', function(err, user) {
+                          console.log("user query complete");
+                          photoArray[photoIndex].comments[commentIndex].user = user;
+                          commentsCallback();
+                      });
+                  }, function() {
+                      photosCallback();
+                  });
+              } else {
+                  photosCallback();
+              }
+          }, function() {
+              response.status(200).send(photoArray);
+          });
         }
-        
     });
 });
 
